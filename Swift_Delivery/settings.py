@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 import dj_database_url
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +30,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'y
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 https://swift-delivery.onrender.com').split()
 
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'swift_delivery_backend',
 ]
@@ -105,11 +108,12 @@ DATABASES = {
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL:
-    DATABASES['default'] = dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=600,
-        ssl_require=not DEBUG,
-    )
+    DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    database_hostname = urlparse(DATABASE_URL).hostname
+    is_local_database = database_hostname in ('localhost', '127.0.0.1', '::1')
+
+    if not DEBUG and not is_local_database:
+        DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
 
 
 # Password validation
@@ -152,3 +156,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
