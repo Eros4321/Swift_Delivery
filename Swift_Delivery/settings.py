@@ -63,6 +63,10 @@ CORS_ALLOWED_ORIGINS = [
     'https://swift-delivery-frontend.vercel.app/'
 ]
 
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://swift-delivery-frontend-[a-z0-9-]+-benjamins-projects-f75264b2\.vercel\.app$",
+]
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 MEDIA_URL = '/media/'
