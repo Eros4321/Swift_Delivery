@@ -3,10 +3,12 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CustomerCartItemView,
     CustomerCartView,
+    CustomerSavedCartNoteViewSet,
     CustomerAddressViewSet,
     CustomerFavoriteVendorDetailView,
     CustomerFavoriteVendorListView,
     CustomerLoginView,
+    CustomerLogoutView,
     CustomerMeView,
     CustomerOrderHistoryView,
     CustomerSignupView,
@@ -26,10 +28,12 @@ router.register(r'cafeterias', VendorViewSet, basename='cafeteria')
 router.register(r'vendor-ratings', VendorRatingViewSet)
 router.register(r'universities', UniversityViewSet, basename='university')
 router.register(r'addresses', CustomerAddressViewSet, basename='customer-address')
+router.register(r'cart/saved-notes', CustomerSavedCartNoteViewSet, basename='customer-saved-cart-note')
 
 urlpatterns = [
     path('auth/customer/signup/', CustomerSignupView.as_view(), name='customer-signup'),
     path('auth/customer/login/', CustomerLoginView.as_view(), name='customer-login'),
+    path('auth/customer/logout/', CustomerLogoutView.as_view(), name='customer-logout'),
     path('auth/customer/me/', CustomerMeView.as_view(), name='customer-me'),
     path('locations/search/', LocationSearchView.as_view(), name='location-search'),
     path('cart/', CustomerCartView.as_view(), name='customer-cart'),

@@ -110,6 +110,7 @@ class Vendor(models.Model):
 
     name = models.CharField(max_length=255)
     image = models.ImageField(upload_to='cafeteria_images/', blank=True, null=True)
+    logo = models.ImageField(upload_to='vendor_logos/', blank=True, null=True)
     vendor_type = models.CharField(
         max_length=20,
         choices=VendorType.choices,
@@ -123,6 +124,9 @@ class Vendor(models.Model):
         null=True,
         blank=True,
     )
+
+    class Meta:
+        ordering = ['id']
 
     def __str__(self):
         return self.name
@@ -169,6 +173,7 @@ class CafeteriaCategory(models.Model):
     name = models.CharField(max_length=255, unique=True)
 
     class Meta:
+        ordering = ['id']
         verbose_name_plural = 'cafeteria categories'
 
     def __str__(self):
@@ -182,12 +187,16 @@ class MenuItem(models.Model):
     image = models.ImageField(upload_to='menu_images/', null=True, blank=True)
     category = models.ForeignKey(CafeteriaCategory, on_delete=models.SET_NULL, null=True, blank=True)
 
+    class Meta:
+        ordering = ['category_id', 'id']
+
     def __str__(self):
         return self.name
 
 
 class Cart(models.Model):
     customer = models.OneToOneField(Customer, on_delete=models.CASCADE, related_name='cart')
+    notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -201,6 +210,23 @@ class Cart(models.Model):
 
     def __str__(self):
         return f"Cart - {self.customer}"
+
+
+class SavedCartNote(models.Model):
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='saved_cart_notes',
+    )
+    note = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+
+    def __str__(self):
+        return f"{self.customer}: {self.note[:50]}"
 
 
 class CartItem(models.Model):

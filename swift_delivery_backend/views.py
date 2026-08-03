@@ -4,7 +4,7 @@ from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status, viewsets
@@ -14,7 +14,7 @@ from .location_services import (
     distance_in_meters,
     search_google_places,
 )
-from .models import Cart, CartItem, Customer, CustomerAddress, FavoriteVendor, MenuItem, Order, University, Vendor, VendorRating
+from .models import Cart, CartItem, Customer, CustomerAddress, FavoriteVendor, MenuItem, Order, SavedCartNote, University, Vendor, VendorRating
 from .serializers import (
     CartSerializer,
     CartItemSerializer,
@@ -25,6 +25,7 @@ from .serializers import (
     FavoriteVendorSerializer,
     MenuItemSerializer,
     OrderSerializer,
+    SavedCartNoteSerializer,
     UniversitySerializer,
     VendorSerializer,
     VendorRatingSerializer,
@@ -140,6 +141,14 @@ class CustomerLoginView(APIView):
         )
 
 
+class CustomerLogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        Token.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class CustomerMeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -210,6 +219,13 @@ class CustomerCartView(APIView):
     def get(self, request):
         return Response(CartSerializer(self.get_cart()).data)
 
+    def patch(self, request):
+        cart = self.get_cart()
+        serializer = CartSerializer(cart, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
     def post(self, request):
         cart = self.get_cart()
         menu_item_id = request.data.get('menu_item')
@@ -238,7 +254,23 @@ class CustomerCartView(APIView):
     def delete(self, request):
         cart = self.get_cart()
         cart.cart_items.all().delete()
+        cart.notes = ''
+        cart.save(update_fields=['notes', 'updated_at'])
         return Response(CartSerializer(cart).data)
+
+
+class CustomerSavedCartNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = SavedCartNoteSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_customer(self):
+        return get_object_or_404(Customer, user=self.request.user)
+
+    def get_queryset(self):
+        return SavedCartNote.objects.filter(customer=self.get_customer())
+
+    def perform_create(self, serializer):
+        serializer.save(customer=self.get_customer())
 
 
 class CustomerCartItemView(APIView):
@@ -323,6 +355,11 @@ class CustomerFavoriteVendorDetailView(APIView):
 class VendorViewSet(viewsets.ModelViewSet):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
+
+    def get_permissions(self):
+        if self.action in {'create', 'update', 'partial_update', 'destroy'}:
+            return [IsAdminUser()]
+        return [AllowAny()]
 
     def get_queryset(self):
         queryset = super().get_queryset()

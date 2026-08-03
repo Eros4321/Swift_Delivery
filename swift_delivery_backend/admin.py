@@ -1,7 +1,22 @@
 from django.contrib import admin
 
 # Register your models here.
-from .models import Cart, CartItem, Customer, CustomerAddress, FavoriteVendor, University, Vendor, VendorRating, MenuItem, Order, CafeteriaCategory, OrderItem
+from .forms import MenuItemAdminForm
+from .models import (
+    CafeteriaCategory,
+    Cart,
+    CartItem,
+    Customer,
+    CustomerAddress,
+    FavoriteVendor,
+    MenuItem,
+    Order,
+    OrderItem,
+    SavedCartNote,
+    University,
+    Vendor,
+    VendorRating,
+)
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -20,9 +35,24 @@ class OrderAdmin(admin.ModelAdmin):
     total_amount_display.short_description = "Total Amount"
 
 class VendorAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'vendor_type', 'closing_time', 'average_rating', 'rating_count')
+    list_display = (
+        'id',
+        'name',
+        'logo_uploaded',
+        'vendor_type',
+        'closing_time',
+        'average_rating',
+        'rating_count',
+    )
     list_filter = ('vendor_type',)
     search_fields = ('name',)
+
+    @admin.display(boolean=True, description='Logo')
+    def logo_uploaded(self, obj):
+        return bool(obj.logo)
+
+class MenuItemAdmin(admin.ModelAdmin):
+    form = MenuItemAdminForm
 
 class VendorRatingAdmin(admin.ModelAdmin):
     list_display = ('id', 'vendor', 'rating', 'customer_name', 'created_at')
@@ -55,6 +85,11 @@ class FavoriteVendorAdmin(admin.ModelAdmin):
     list_display = ('id', 'customer', 'vendor', 'created_at')
     search_fields = ('customer__phone_number', 'vendor__name')
 
+class SavedCartNoteAdmin(admin.ModelAdmin):
+    list_display = ('id', 'customer', 'note', 'created_at', 'updated_at')
+    search_fields = ('customer__phone_number', 'note')
+    readonly_fields = ('created_at', 'updated_at')
+
 class UniversityAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'detection_radius_meters', 'is_active')
     list_filter = ('is_active',)
@@ -65,9 +100,10 @@ admin.site.register(CustomerAddress, CustomerAddressAdmin)
 admin.site.register(Cart, CartAdmin)
 admin.site.register(CartItem)
 admin.site.register(FavoriteVendor, FavoriteVendorAdmin)
+admin.site.register(SavedCartNote, SavedCartNoteAdmin)
 admin.site.register(Vendor, VendorAdmin)
 admin.site.register(VendorRating, VendorRatingAdmin)
-admin.site.register(MenuItem)
+admin.site.register(MenuItem, MenuItemAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(CafeteriaCategory)
 admin.site.register(OrderItem)

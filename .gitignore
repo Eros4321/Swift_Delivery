@@ -1,8 +1,39 @@
+# Environment files
 .env
-*.pyc
-__pycache__/
-db.sqlite3
-staticfiles/
-media/
+.env.*
+!.env.example
+
+# Virtual environments
 .venv/
+venv/
+env/
+
+# Python caches and test output
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Python packaging
+*.egg-info/
+.eggs/
+
+# Django runtime files
+*.sqlite3
+media/
+staticfiles/
+*.log
 data.json
+
+# Local tool caches
+.uv-cache/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

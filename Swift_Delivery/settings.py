@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
@@ -31,6 +32,30 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'y
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+REMOVE_BG_API_KEY = os.environ.get('REMOVE_BG_API_KEY', '')
+REMOVE_BG_API_URL = os.environ.get(
+    'REMOVE_BG_API_URL',
+    'https://api.remove.bg/v1.0/removebg',
+)
+REMOVE_BG_API_TIMEOUT_SECONDS = float(
+    os.environ.get('REMOVE_BG_API_TIMEOUT_SECONDS', '30')
+)
+
+CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+USE_CLOUDINARY = os.environ.get('USE_CLOUDINARY', 'False').lower() in (
+    '1',
+    'true',
+    'yes',
+)
+CLOUDINARY_FOLDER = os.environ.get(
+    'CLOUDINARY_FOLDER',
+    'swift-delivery/development',
+).strip('/')
+
+if USE_CLOUDINARY and not CLOUDINARY_URL:
+    raise ImproperlyConfigured(
+        'USE_CLOUDINARY is enabled but CLOUDINARY_URL is not configured.'
+    )
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 https://swift-delivery.onrender.com').split()
 
@@ -73,6 +98,24 @@ CORS_ALLOWED_ORIGINS = [
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 MEDIA_URL = '/media/'
+
+STORAGES = {
+    'default': {
+        'BACKEND': (
+            'Swift_Delivery.storage.CloudinaryMediaStorage'
+            if USE_CLOUDINARY
+            else 'django.core.files.storage.FileSystemStorage'
+        ),
+        'OPTIONS': (
+            {'folder': CLOUDINARY_FOLDER}
+            if USE_CLOUDINARY
+            else {}
+        ),
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
 
 ROOT_URLCONF = 'Swift_Delivery.urls'
 

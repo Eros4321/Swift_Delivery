@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from .background_removal import BackgroundRemovalError, remove_image_background
 from .location_services import distance_in_meters
 from .models import (
     CafeteriaCategory,
@@ -11,6 +12,7 @@ from .models import (
     MenuItem,
     Order,
     OrderItem,
+    SavedCartNote,
     University,
     Vendor,
     VendorRating,
@@ -18,19 +20,37 @@ from .models import (
 )
 
 
+class UniversitySummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = University
+        fields = ('id', 'name')
+
+
 class CustomerSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source='user.first_name', read_only=True)
     last_name = serializers.CharField(source='user.last_name', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
-    preferred_university = serializers.PrimaryKeyRelatedField(
+    preferred_university = UniversitySummarySerializer(read_only=True)
+    preferred_university_id = serializers.PrimaryKeyRelatedField(
+        source='preferred_university',
         queryset=University.objects.filter(is_active=True),
         allow_null=True,
         required=False,
+        write_only=True,
     )
 
     class Meta:
         model = Customer
-        fields = ('id', 'phone_number', 'first_name', 'last_name', 'email', 'preferred_university', 'created_at')
+        fields = (
+            'id',
+            'phone_number',
+            'first_name',
+            'last_name',
+            'email',
+            'preferred_university',
+            'preferred_university_id',
+            'created_at',
+        )
 
 
 class CustomerAddressSerializer(serializers.ModelSerializer):
@@ -119,6 +139,15 @@ class CafeteriaCategorySerializer(serializers.ModelSerializer):
 class MenuItemSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
 
+    def validate_image(self, image):
+        if image is None:
+            return None
+
+        try:
+            return remove_image_background(image)
+        except BackgroundRemovalError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+
     class Meta:
         model = MenuItem
         fields = '__all__'
@@ -164,9 +193,16 @@ class CartSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cart
-        fields = ('id', 'customer', 'items', 'total_amount', 'item_count', 'created_at', 'updated_at')
+        fields = ('id', 'customer', 'items', 'notes', 'total_amount', 'item_count', 'created_at', 'updated_at')
         read_only_fields = ('customer',)
         
+
+class SavedCartNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedCartNote
+        fields = ('id', 'note', 'created_at', 'updated_at')
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     menu_item_name = serializers.ReadOnlyField(source='menu_item.name')
     price = serializers.ReadOnlyField(source='menu_item.price')
