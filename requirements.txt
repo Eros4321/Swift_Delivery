@@ -3,3 +3,8 @@ gunicorn
 whitenoise
 djangorestframework
 django-cors-headers
+dj-database-url
+psycopg2-binary
+python-dotenv
+requests
+cloudinary>=1.45,<2

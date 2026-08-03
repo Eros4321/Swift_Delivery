@@ -12,19 +12,50 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'your-dev-secret-key')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'your-dev-secret-key'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+REMOVE_BG_API_KEY = os.environ.get('REMOVE_BG_API_KEY', '')
+REMOVE_BG_API_URL = os.environ.get(
+    'REMOVE_BG_API_URL',
+    'https://api.remove.bg/v1.0/removebg',
+)
+REMOVE_BG_API_TIMEOUT_SECONDS = float(
+    os.environ.get('REMOVE_BG_API_TIMEOUT_SECONDS', '30')
+)
+
+CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+USE_CLOUDINARY = os.environ.get('USE_CLOUDINARY', 'False').lower() in (
+    '1',
+    'true',
+    'yes',
+)
+CLOUDINARY_FOLDER = os.environ.get(
+    'CLOUDINARY_FOLDER',
+    'swift-delivery/development',
+).strip('/')
+
+if USE_CLOUDINARY and not CLOUDINARY_URL:
+    raise ImproperlyConfigured(
+        'USE_CLOUDINARY is enabled but CLOUDINARY_URL is not configured.'
+    )
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 https://swift-delivery.onrender.com').split()
 
@@ -41,6 +72,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'swift_delivery_backend',
 ]
@@ -59,13 +91,31 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
-    'https://swift-delivery-frontend-khn550wwd-benjamins-projects-f75264b2.vercel.app/',
-    'https://swift-delivery-frontend.vercel.app/'
+    'https://swift-delivery-frontend-khn550wwd-benjamins-projects-f75264b2.vercel.app',
+    'https://swift-delivery-frontend.vercel.app'
 ]
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 MEDIA_URL = '/media/'
+
+STORAGES = {
+    'default': {
+        'BACKEND': (
+            'Swift_Delivery.storage.CloudinaryMediaStorage'
+            if USE_CLOUDINARY
+            else 'django.core.files.storage.FileSystemStorage'
+        ),
+        'OPTIONS': (
+            {'folder': CLOUDINARY_FOLDER}
+            if USE_CLOUDINARY
+            else {}
+        ),
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
 
 ROOT_URLCONF = 'Swift_Delivery.urls'
 
@@ -97,6 +147,16 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    database_hostname = urlparse(DATABASE_URL).hostname
+    is_local_database = database_hostname in ('localhost', '127.0.0.1', '::1')
+
+    if not DEBUG and not is_local_database:
+        DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
 
 
 # Password validation
@@ -139,3 +199,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
