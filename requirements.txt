@@ -8,3 +8,4 @@ psycopg2-binary
 python-dotenv
 requests
 cloudinary>=1.45,<2
+Pillow>=12.2,<13
