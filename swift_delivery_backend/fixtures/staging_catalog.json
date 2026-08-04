@@ -1,0 +1,298 @@
+[
+  {
+    "model": "swift_delivery_backend.university",
+    "pk": 1,
+    "fields": {
+      "name": "Redeemer's University",
+      "latitude": "7.678906",
+      "longitude": "4.453470",
+      "detection_radius_meters": 3000,
+      "is_active": true
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 1,
+    "fields": {
+      "name": "Izzybreadbox",
+      "image": "cafeteria_images/eazy1_CFlX6NT.jfif",
+      "logo": "vendor_logos/ChatGPT_Image_May_6_2026_01_23_24_PM.png",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 2,
+    "fields": {
+      "name": "Double Portion(Dp)",
+      "image": "cafeteria_images/Dp_1_1_1_aJojR8f.jpg",
+      "logo": "",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 3,
+    "fields": {
+      "name": "Manna",
+      "image": "cafeteria_images/Nigerian-fried-rice-768x1024_Rrf3ERp.jpg",
+      "logo": "",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 4,
+    "fields": {
+      "name": "Numbers",
+      "image": "cafeteria_images/amala-8473-683x1024_AeSlnY9.jpg",
+      "logo": "",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 5,
+    "fields": {
+      "name": "Food mart stores",
+      "image": "cafeteria_images/f4d70fd5bdf9ef8383c99750b556f6fc_BHYQgnE.jpg",
+      "logo": "",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 6,
+    "fields": {
+      "name": "Mimi's",
+      "image": "cafeteria_images/58c0dd07a6760f62d7dd4b967aa338f3_2Nox02h.jpg",
+      "logo": "",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.vendor",
+    "pk": 7,
+    "fields": {
+      "name": "National Kitchen",
+      "image": "cafeteria_images/White-Rice-with-stew-and-plantain_rp5Q9KD..jpeg",
+      "logo": "",
+      "vendor_type": "cafeteria",
+      "closing_time": null,
+      "university": 1
+    }
+  },
+  {
+    "model": "swift_delivery_backend.cafeteriacategory",
+    "pk": 1,
+    "fields": {
+      "name": "Main Dishes"
+    }
+  },
+  {
+    "model": "swift_delivery_backend.cafeteriacategory",
+    "pk": 2,
+    "fields": {
+      "name": "Snacks"
+    }
+  },
+  {
+    "model": "swift_delivery_backend.cafeteriacategory",
+    "pk": 3,
+    "fields": {
+      "name": "Drinks"
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 1,
+    "fields": {
+      "name": "Jollof Rice",
+      "price": "200.00",
+      "available": true,
+      "image": "menu_images/Dp_1_1_1-no-bg.png",
+      "category": 1,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 2,
+    "fields": {
+      "name": "burger",
+      "price": "1000.00",
+      "available": true,
+      "image": "menu_images/amirali-mirhashemian-sc5sTPMrVfk-unsplash-no-bg.png",
+      "category": 1,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 3,
+    "fields": {
+      "name": "Fried Rice",
+      "price": "200.00",
+      "available": true,
+      "image": "menu_images/Nigerian-fried-rice-768x1024-no-bg.png",
+      "category": 1,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 4,
+    "fields": {
+      "name": "Amala",
+      "price": "200.00",
+      "available": true,
+      "image": "menu_images/istockphoto-1398349488-1024x1024-no-bg.png",
+      "category": 1,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 5,
+    "fields": {
+      "name": "white rice",
+      "price": "200.00",
+      "available": true,
+      "image": "menu_images/White-Rice-with-stew-and-plantain.-no-bg.png",
+      "category": 1,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 6,
+    "fields": {
+      "name": "Pringles",
+      "price": "1500.00",
+      "available": true,
+      "image": "menu_images/images_1_1-no-bg.png",
+      "category": 2,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 7,
+    "fields": {
+      "name": "coke",
+      "price": "500.00",
+      "available": true,
+      "image": "menu_images/WhatsApp-Image-2024-03-11-at-1.1-no-bg.png",
+      "category": 3,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 8,
+    "fields": {
+      "name": "gala",
+      "price": "200.00",
+      "available": true,
+      "image": "menu_images/Marking-Online-Store-Gala-pack_1-no-bg.png",
+      "category": 2,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 9,
+    "fields": {
+      "name": "Pin Pop",
+      "price": "50.00",
+      "available": true,
+      "image": "menu_images/images_2_1-no-bg.png",
+      "category": 2,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 10,
+    "fields": {
+      "name": "Shortbread",
+      "price": "1500.00",
+      "available": true,
+      "image": "menu_images/BISCUITS-SHORTBREAD-MCVITIES-280-no-bg.png",
+      "category": 2,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 11,
+    "fields": {
+      "name": "Cupcake",
+      "price": "500.00",
+      "available": true,
+      "image": "menu_images/images_3_1-no-bg.png",
+      "category": 2,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 12,
+    "fields": {
+      "name": "fanta",
+      "price": "500.00",
+      "available": true,
+      "image": "menu_images/Soft-Drink-Fanta-500Ml-NRB-Origi-no-bg.png",
+      "category": 3,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 13,
+    "fields": {
+      "name": "Sosa",
+      "price": "500.00",
+      "available": true,
+      "image": "menu_images/sosa-drink-no-bg.png",
+      "category": 3,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 14,
+    "fields": {
+      "name": "bottle water",
+      "price": "200.00",
+      "available": true,
+      "image": "menu_images/p49-no-bg.png",
+      "category": 3,
+      "vendors": [1]
+    }
+  },
+  {
+    "model": "swift_delivery_backend.menuitem",
+    "pk": 15,
+    "fields": {
+      "name": "hollandia",
+      "price": "1500.00",
+      "available": true,
+      "image": "menu_images/MartKing-Hollandia-Strawberry-no-bg.png",
+      "category": 3,
+      "vendors": [1]
+    }
+  }
+]
