@@ -23,6 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 
+def environment_list(name, default=''):
+    """Read a comma- or whitespace-separated environment variable."""
+    value = os.environ.get(name, default)
+    return [item for item in value.replace(',', ' ').split() if item]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
@@ -57,7 +63,13 @@ if USE_CLOUDINARY and not CLOUDINARY_URL:
         'USE_CLOUDINARY is enabled but CLOUDINARY_URL is not configured.'
     )
 
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 https://swift-delivery.onrender.com').split()
+ALLOWED_HOSTS = environment_list(
+    'DJANGO_ALLOWED_HOSTS',
+    (
+        'localhost 127.0.0.1 swift-delivery.onrender.com '
+        'swift-delivery-staging.onrender.com'
+    ),
+)
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
@@ -89,11 +101,16 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'https://swift-delivery-frontend-khn550wwd-benjamins-projects-f75264b2.vercel.app',
-    'https://swift-delivery-frontend.vercel.app'
-]
+CORS_ALLOWED_ORIGINS = environment_list(
+    'CORS_ALLOWED_ORIGINS',
+    (
+        'http://localhost:5173 '
+        'https://swift-delivery-frontend-khn550wwd-benjamins-projects-f75264b2.vercel.app '
+        'https://swift-delivery-frontend.vercel.app'
+    ),
+)
+
+CSRF_TRUSTED_ORIGINS = environment_list('CSRF_TRUSTED_ORIGINS')
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
