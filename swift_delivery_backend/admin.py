@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.gis.admin import GISModelAdmin
 
 # Register your models here.
 from .forms import MenuItemAdminForm
@@ -17,6 +18,7 @@ from .models import (
     Vendor,
     VendorRating,
 )
+from .widgets import GoogleMapsMultiPolygonWidget
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -27,11 +29,24 @@ class CartItemInline(admin.TabularInline):
     extra = 1
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'customer_name', 'phone_number', 'delivery_address', 'total_amount_display', 'order_time')
+    list_display = (
+        'id',
+        'order_id',
+        'customer',
+        'customer_name',
+        'phone_number',
+        'delivery_address',
+        'subtotal_amount',
+        'delivery_fee',
+        'total_amount_display',
+        'order_time',
+    )
+    readonly_fields = ('order_id', 'subtotal_amount', 'delivery_fee', 'total_amount')
+    search_fields = ('order_id', 'customer_name', 'phone_number')
     inlines = [OrderItemInline]
     
     def total_amount_display(self, obj):
-        return f"₦{obj.total_amount()}"
+        return f"₦{obj.total_amount}"
     total_amount_display.short_description = "Total Amount"
 
 class VendorAdmin(admin.ModelAdmin):
@@ -86,14 +101,39 @@ class FavoriteVendorAdmin(admin.ModelAdmin):
     search_fields = ('customer__phone_number', 'vendor__name')
 
 class SavedCartNoteAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'note', 'created_at', 'updated_at')
+    list_display = ('id', 'customer', 'note_type', 'note', 'created_at', 'updated_at')
+    list_filter = ('note_type',)
     search_fields = ('customer__phone_number', 'note')
     readonly_fields = ('created_at', 'updated_at')
 
-class UniversityAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'detection_radius_meters', 'is_active')
+class UniversityAdmin(GISModelAdmin):
+    gis_widget = GoogleMapsMultiPolygonWidget
+    list_display = (
+        'id',
+        'name',
+        'google_place_id',
+        'detection_radius_meters',
+        'delivery_fee',
+        'has_delivery_area',
+        'is_active',
+    )
     list_filter = ('is_active',)
-    search_fields = ('name',)
+    search_fields = ('name', 'google_place_id')
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        delivery_area_field = form.base_fields.get('delivery_area')
+        if obj is not None and delivery_area_field is not None:
+            delivery_area_field.widget.attrs.update({
+                'default_lon': float(obj.longitude),
+                'default_lat': float(obj.latitude),
+                'default_zoom': 16,
+            })
+        return form
+
+    @admin.display(boolean=True, description='Polygon configured')
+    def has_delivery_area(self, obj):
+        return obj.delivery_area is not None and not obj.delivery_area.empty
 
 admin.site.register(Customer, CustomerAdmin)
 admin.site.register(CustomerAddress, CustomerAddressAdmin)
