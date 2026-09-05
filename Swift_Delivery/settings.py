@@ -23,6 +23,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 
+# The Windows PostGIS bundle installs versioned GDAL/GEOS DLLs beside
+# PostgreSQL. Help GeoDjango locate them without affecting Linux deployments.
+_POSTGIS_DLL_DIRECTORY = None
+if os.name == 'nt':
+    postgis_bin_path = Path(
+        os.environ.get('POSTGIS_BIN_PATH', r'C:\PostgreSQL\18\bin')
+    )
+    if postgis_bin_path.is_dir():
+        _POSTGIS_DLL_DIRECTORY = os.add_dll_directory(str(postgis_bin_path))
+        gdal_libraries = sorted(postgis_bin_path.glob('libgdal-*.dll'))
+        geos_library = postgis_bin_path / 'libgeos_c.dll'
+        if gdal_libraries:
+            GDAL_LIBRARY_PATH = os.environ.get(
+                'GDAL_LIBRARY_PATH',
+                str(gdal_libraries[-1]),
+            )
+        if geos_library.exists():
+            GEOS_LIBRARY_PATH = os.environ.get(
+                'GEOS_LIBRARY_PATH',
+                str(geos_library),
+            )
+
+
 def environment_list(name, default=''):
     """Read a comma- or whitespace-separated environment variable."""
     value = os.environ.get(name, default)
@@ -38,6 +61,10 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'y
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+GOOGLE_MAPS_ADMIN_BROWSER_API_KEY = os.environ.get(
+    'GOOGLE_MAPS_ADMIN_BROWSER_API_KEY',
+    '',
+)
 REMOVE_BG_API_KEY = os.environ.get('REMOVE_BG_API_KEY', '')
 REMOVE_BG_API_URL = os.environ.get(
     'REMOVE_BG_API_URL',
@@ -80,6 +107,7 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.gis',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -158,22 +186,27 @@ WSGI_APPLICATION = 'Swift_Delivery.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if DATABASE_URL:
-    DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
-    database_hostname = urlparse(DATABASE_URL).hostname
-    is_local_database = database_hostname in ('localhost', '127.0.0.1', '::1')
+if not DATABASE_URL:
+    raise ImproperlyConfigured(
+        'DATABASE_URL must point to a PostgreSQL database with PostGIS enabled.'
+    )
 
-    if not DEBUG and not is_local_database:
-        DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
+DATABASES = {
+    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600),
+}
+if DATABASES['default']['ENGINE'] != 'django.db.backends.postgresql':
+    raise ImproperlyConfigured(
+        'Swift Delivery requires PostgreSQL with PostGIS; SQLite is not supported.'
+    )
+DATABASES['default']['ENGINE'] = 'django.contrib.gis.db.backends.postgis'
+
+database_hostname = urlparse(DATABASE_URL).hostname
+is_local_database = database_hostname in ('localhost', '127.0.0.1', '::1')
+
+if not DEBUG and not is_local_database:
+    DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
 
 
 # Password validation
@@ -200,7 +233,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Lagos'
 
 USE_I18N = True
 

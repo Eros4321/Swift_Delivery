@@ -4,15 +4,27 @@ from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status, viewsets
+from .delivery_services import (
+    DeliveryFeeConfigurationError,
+    calculate_cart_subtotal,
+    calculate_delivery_fee,
+)
 from .location_services import (
+    LocationOutsideDeliveryArea,
     LocationProviderError,
     LocationProviderNotConfigured,
-    distance_in_meters,
+    LocationResultNotFound,
+    UniversityRootPlaceSelected,
+    get_google_place_details,
+    reverse_geocode_google,
     search_google_places,
+    validate_coordinates_within_university,
+    validate_google_place_id_for_university,
 )
 from .models import Cart, CartItem, Customer, CustomerAddress, FavoriteVendor, MenuItem, Order, SavedCartNote, University, Vendor, VendorRating
 from .serializers import (
@@ -22,11 +34,16 @@ from .serializers import (
     CustomerAddressSerializer,
     CustomerSerializer,
     CustomerSignupSerializer,
+    DeliveryQuoteRequestSerializer,
+    DeliveryQuoteResponseSerializer,
+    DeliveryOrderSerializer,
     FavoriteVendorSerializer,
     MenuItemSerializer,
     OrderSerializer,
+    ReverseGeocodeRequestSerializer,
     SavedCartNoteSerializer,
     UniversitySerializer,
+    VendorOrderSerializer,
     VendorSerializer,
     VendorRatingSerializer,
 )
@@ -53,16 +70,25 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        candidates = [
-            (distance_in_meters(latitude, longitude, university.latitude, university.longitude), university)
-            for university in self.get_queryset()
-        ]
+        candidates = []
+        for university in self.get_queryset():
+            try:
+                distance = validate_coordinates_within_university(
+                    university,
+                    latitude,
+                    longitude,
+                )
+            except LocationOutsideDeliveryArea:
+                continue
+            candidates.append((distance, university))
+
         if not candidates:
-            return Response({'detail': 'No supported university was found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'detail': 'No supported university was found near this location.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         distance, university = min(candidates, key=lambda candidate: candidate[0])
-        if distance > university.detection_radius_meters:
-            return Response({'detail': 'No supported university was found near this location.'}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({
             'university': self.get_serializer(university).data,
@@ -105,6 +131,131 @@ class LocationSearchView(APIView):
             'university': university.id,
             'results': results,
         })
+
+
+class ReverseGeocodeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ReverseGeocodeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        latitude = serializer.validated_data['latitude']
+        longitude = serializer.validated_data['longitude']
+        university = get_object_or_404(
+            University,
+            pk=serializer.validated_data['university_id'],
+            is_active=True,
+        )
+        place_id = serializer.validated_data.get('place_id')
+
+        try:
+            place_id = validate_google_place_id_for_university(
+                university,
+                place_id,
+            )
+        except UniversityRootPlaceSelected as error:
+            return Response(
+                {'place_id': str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            distance = validate_coordinates_within_university(
+                university,
+                latitude,
+                longitude,
+            )
+        except LocationOutsideDeliveryArea:
+            return Response(
+                {'location': 'This point is outside the selected university delivery area.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = (
+                get_google_place_details(place_id)
+                if place_id
+                else reverse_geocode_google(latitude, longitude)
+            )
+        except LocationProviderNotConfigured:
+            return Response(
+                {'detail': 'Reverse geocoding is not configured.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except LocationResultNotFound:
+            return Response(
+                {'detail': 'No address was found for the selected point.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except LocationProviderError:
+            return Response(
+                {'detail': 'Reverse geocoding is temporarily unavailable.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        if not result.get('name'):
+            result['name'] = result.get('formatted_address') or None
+
+        return Response({
+            'university': university.id,
+            **result,
+            'latitude': latitude,
+            'longitude': longitude,
+            'distance_meters': round(distance),
+        })
+
+
+class DeliveryQuoteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        request_serializer = DeliveryQuoteRequestSerializer(
+            data=request.data,
+            context={'request': request},
+        )
+        request_serializer.is_valid(raise_exception=True)
+        customer = get_object_or_404(Customer, user=request.user)
+        cart, _ = (
+            Cart.objects
+            .prefetch_related('cart_items__menu_item')
+            .get_or_create(customer=customer)
+        )
+        if cart.item_count == 0:
+            return Response(
+                {'cart': 'Your cart is empty.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        university = request_serializer.validated_data['university']
+        delivery_point = {
+            'latitude': request_serializer.validated_data['delivery_latitude'],
+            'longitude': request_serializer.validated_data['delivery_longitude'],
+            'place_id': request_serializer.validated_data['delivery_place_id'],
+            'address': request_serializer.validated_data.get('delivery_address'),
+        }
+        subtotal = calculate_cart_subtotal(cart)
+        try:
+            delivery_fee = calculate_delivery_fee(
+                university=university,
+                cart=cart,
+                delivery_point=delivery_point,
+            )
+        except DeliveryFeeConfigurationError as error:
+            return Response(
+                {'delivery_fee': str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response_serializer = DeliveryQuoteResponseSerializer(data={
+            'currency': 'NGN',
+            'item_count': cart.item_count,
+            'subtotal_amount': subtotal,
+            'delivery_fee': delivery_fee,
+            'total_amount': subtotal + delivery_fee,
+            'university': university.id,
+        })
+        response_serializer.is_valid(raise_exception=True)
+        return Response(response_serializer.data)
 
 
 class CustomerSignupView(APIView):
@@ -254,8 +405,9 @@ class CustomerCartView(APIView):
     def delete(self, request):
         cart = self.get_cart()
         cart.cart_items.all().delete()
-        cart.notes = ''
-        cart.save(update_fields=['notes', 'updated_at'])
+        cart.vendor_notes = ''
+        cart.delivery_notes = ''
+        cart.save(update_fields=['vendor_notes', 'delivery_notes', 'updated_at'])
         return Response(CartSerializer(cart).data)
 
 
@@ -267,7 +419,17 @@ class CustomerSavedCartNoteViewSet(viewsets.ModelViewSet):
         return get_object_or_404(Customer, user=self.request.user)
 
     def get_queryset(self):
-        return SavedCartNote.objects.filter(customer=self.get_customer())
+        queryset = SavedCartNote.objects.filter(customer=self.get_customer())
+        if self.action == 'list':
+            note_type = self.request.query_params.get('type')
+            if note_type:
+                valid_types = {choice for choice, _ in SavedCartNote.NoteType.choices}
+                if note_type not in valid_types:
+                    raise ValidationError({
+                        'type': 'Must be either "vendor" or "delivery".'
+                    })
+                queryset = queryset.filter(note_type=note_type)
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(customer=self.get_customer())
@@ -418,11 +580,34 @@ class VendorRatingViewSet(viewsets.ModelViewSet):
 
 
 class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.all()
+    queryset = Order.objects.prefetch_related('orderitem_set__menu_item').all()
     serializer_class = OrderSerializer
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [AllowAny()]
+        if self.action in {'retrieve'}:
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action == 'retrieve' and not self.request.user.is_staff:
+            return queryset.filter(customer__user=self.request.user)
+        return queryset
 
     def perform_create(self, serializer):
         customer = None
         if self.request.user.is_authenticated:
             customer = Customer.objects.filter(user=self.request.user).first()
         serializer.save(customer=customer)
+
+    @action(detail=True, methods=['get'], url_path='vendor')
+    def vendor(self, request, pk=None):
+        order = self.get_object()
+        return Response(VendorOrderSerializer(order).data)
+
+    @action(detail=True, methods=['get'], url_path='delivery')
+    def delivery(self, request, pk=None):
+        order = self.get_object()
+        return Response(DeliveryOrderSerializer(order).data)

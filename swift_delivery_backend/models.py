@@ -1,8 +1,12 @@
+from decimal import Decimal
+
 from django.db import models
+from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db.models import Avg, Sum, F
+from django.db.models import Avg
+from .order_services import generate_order_id
 
 # Create your models here.
 def normalize_nigerian_phone_number(phone_number):
@@ -14,6 +18,12 @@ def normalize_nigerian_phone_number(phone_number):
 
 class University(models.Model):
     name = models.CharField(max_length=255, unique=True)
+    google_place_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     latitude = models.DecimalField(
         max_digits=9,
         decimal_places=6,
@@ -25,6 +35,17 @@ class University(models.Model):
         validators=[MinValueValidator(-180), MaxValueValidator(180)],
     )
     detection_radius_meters = models.PositiveIntegerField(default=3000)
+    delivery_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('500.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+    )
+    delivery_area = gis_models.MultiPolygonField(
+        srid=4326,
+        null=True,
+        blank=True,
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -196,13 +217,22 @@ class MenuItem(models.Model):
 
 class Cart(models.Model):
     customer = models.OneToOneField(Customer, on_delete=models.CASCADE, related_name='cart')
-    notes = models.TextField(blank=True, default='')
+    vendor_notes = models.TextField(blank=True, default='', max_length=500)
+    delivery_notes = models.TextField(blank=True, default='', max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     @property
+    def subtotal_amount(self):
+        return sum(
+            (item.line_total for item in self.cart_items.all()),
+            Decimal('0.00'),
+        )
+
+    @property
     def total_amount(self):
-        return sum(item.line_total for item in self.cart_items.all())
+        # Backward-compatible alias. Cart totals never include delivery fees.
+        return self.subtotal_amount
 
     @property
     def item_count(self):
@@ -213,12 +243,21 @@ class Cart(models.Model):
 
 
 class SavedCartNote(models.Model):
+    class NoteType(models.TextChoices):
+        VENDOR = 'vendor', 'Vendor'
+        DELIVERY = 'delivery', 'Delivery'
+
     customer = models.ForeignKey(
         Customer,
         on_delete=models.CASCADE,
         related_name='saved_cart_notes',
     )
     note = models.TextField(max_length=500)
+    note_type = models.CharField(
+        max_length=10,
+        choices=NoteType.choices,
+        default=NoteType.VENDOR,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -248,6 +287,13 @@ class CartItem(models.Model):
 
 
 class Order(models.Model):
+    order_id = models.CharField(
+        max_length=8,
+        unique=True,
+        db_index=True,
+        editable=False,
+        default=generate_order_id,
+    )
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='orders', null=True, blank=True)
     customer_name = models.CharField(max_length=255, null=True)
     phone_number = models.CharField(max_length=20, null=True)
@@ -281,14 +327,25 @@ class Order(models.Model):
         null=True,
         blank=True,
     )
-    delivery_notes = models.TextField(blank=True)
+    vendor_notes = models.TextField(blank=True, default='', max_length=500)
+    delivery_notes = models.TextField(blank=True, default='', max_length=500)
+    subtotal_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+    )
+    delivery_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+    )
+    total_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+    )
     items = models.ManyToManyField(MenuItem, through="OrderItem")
     order_time = models.DateTimeField(auto_now_add=True)
-    
-    def total_amount(self):
-        return self.orderitem_set.aggregate(
-            total=Sum(F('quantity') * F('menu_item__price'))
-        )['total'] or 0
 
     def __str__(self):
         return f"Order {self.id} - {self.customer_name}"

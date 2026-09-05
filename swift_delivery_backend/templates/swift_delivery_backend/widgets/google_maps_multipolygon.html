@@ -1,0 +1,41 @@
+{% load i18n l10n %}
+
+<div id="{{ id }}_google_maps_editor" class="delivery-area-editor">
+    <div class="delivery-area-toolbar" aria-label="{% translate 'Delivery area drawing controls' %}">
+        <button type="button" data-action="start">{% translate "Start polygon" %}</button>
+        <button type="button" data-action="finish" disabled>{% translate "Finish polygon" %}</button>
+        <button type="button" data-action="undo" disabled>{% translate "Undo point" %}</button>
+        <button type="button" data-action="cancel" disabled>{% translate "Cancel drawing" %}</button>
+        <button type="button" data-action="delete" disabled>{% translate "Delete selected" %}</button>
+        <button type="button" data-action="clear">{% translate "Clear all" %}</button>
+    </div>
+    <p class="delivery-area-help">
+        {% translate "Select Start polygon, click at least three boundary points, then select Finish polygon. Click an existing polygon to select it; drag its vertices to edit it." %}
+    </p>
+    <div id="{{ id }}_google_map" class="delivery-area-map" role="application" aria-label="{% translate 'University delivery area map' %}"></div>
+    <div class="delivery-area-map-details">
+        <span data-role="zoom" class="delivery-area-zoom" aria-live="polite">{% translate "Zoom: loading" %}</span>
+        <span data-role="status" class="delivery-area-status" aria-live="polite"></span>
+    </div>
+    <textarea
+        id="{{ id }}"
+        class="vSerializedField required"
+        cols="150"
+        rows="10"
+        name="{{ name }}"
+        hidden
+        {% if disabled %}disabled{% endif %}
+    >{{ serialized }}</textarea>
+</div>
+<script>
+    window.SwiftDeliveryGoogleMaps.register({
+        rootId: "{{ id|escapejs }}_google_maps_editor",
+        mapId: "{{ id|escapejs }}_google_map",
+        inputId: "{{ id|escapejs }}",
+        apiKey: "{{ google_maps_api_key|escapejs }}",
+        defaultLatitude: {{ default_lat|unlocalize }},
+        defaultLongitude: {{ default_lon|unlocalize }},
+        defaultZoom: {{ default_zoom|unlocalize }},
+        disabled: {% if disabled %}true{% else %}false{% endif %}
+    });
+</script>
