@@ -1,19 +1,27 @@
 services:
   - type: web
     name: Swift_Delivery
-    env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn Swift_Delivery.wsgi:application"
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: Swift_Delivery.settings
       - key: PYTHON_VERSION
         value: 3.11
-      - key: SECRET_KEY
+      - key: DJANGO_SECRET_KEY
         value: your-dev-secret-key
       - key: DATABASE_URL
-        value: sqlite:///db.sqlite3
+        fromDatabase:
+          name: Swift_Delivery_DB
+          property: connectionString
+      - key: GOOGLE_MAPS_ADMIN_BROWSER_API_KEY
+        sync: false
     plan: free
     autoDeploy: true
+
+databases:
+  - name: Swift_Delivery_DB
+    plan: free
 
       

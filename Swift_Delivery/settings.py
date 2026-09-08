@@ -12,21 +12,91 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / '.env')
+
+
+# The Windows PostGIS bundle installs versioned GDAL/GEOS DLLs beside
+# PostgreSQL. Help GeoDjango locate them without affecting Linux deployments.
+_POSTGIS_DLL_DIRECTORY = None
+if os.name == 'nt':
+    postgis_bin_path = Path(
+        os.environ.get('POSTGIS_BIN_PATH', r'C:\PostgreSQL\18\bin')
+    )
+    if postgis_bin_path.is_dir():
+        _POSTGIS_DLL_DIRECTORY = os.add_dll_directory(str(postgis_bin_path))
+        gdal_libraries = sorted(postgis_bin_path.glob('libgdal-*.dll'))
+        geos_library = postgis_bin_path / 'libgeos_c.dll'
+        if gdal_libraries:
+            GDAL_LIBRARY_PATH = os.environ.get(
+                'GDAL_LIBRARY_PATH',
+                str(gdal_libraries[-1]),
+            )
+        if geos_library.exists():
+            GEOS_LIBRARY_PATH = os.environ.get(
+                'GEOS_LIBRARY_PATH',
+                str(geos_library),
+            )
+
+
+def environment_list(name, default=''):
+    """Read a comma- or whitespace-separated environment variable."""
+    value = os.environ.get(name, default)
+    return [item for item in value.replace(',', ' ').split() if item]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'your-dev-secret-key')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'your-dev-secret-key'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+GOOGLE_MAPS_ADMIN_BROWSER_API_KEY = os.environ.get(
+    'GOOGLE_MAPS_ADMIN_BROWSER_API_KEY',
+    '',
+)
+REMOVE_BG_API_KEY = os.environ.get('REMOVE_BG_API_KEY', '')
+REMOVE_BG_API_URL = os.environ.get(
+    'REMOVE_BG_API_URL',
+    'https://api.remove.bg/v1.0/removebg',
+)
+REMOVE_BG_API_TIMEOUT_SECONDS = float(
+    os.environ.get('REMOVE_BG_API_TIMEOUT_SECONDS', '30')
+)
 
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 https://swift-delivery.onrender.com').split()
+CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+USE_CLOUDINARY = os.environ.get('USE_CLOUDINARY', 'False').lower() in (
+    '1',
+    'true',
+    'yes',
+)
+CLOUDINARY_FOLDER = os.environ.get(
+    'CLOUDINARY_FOLDER',
+    'swift-delivery/development',
+).strip('/')
+
+if USE_CLOUDINARY and not CLOUDINARY_URL:
+    raise ImproperlyConfigured(
+        'USE_CLOUDINARY is enabled but CLOUDINARY_URL is not configured.'
+    )
+
+ALLOWED_HOSTS = environment_list(
+    'DJANGO_ALLOWED_HOSTS',
+    (
+        'localhost 127.0.0.1 swift-delivery.onrender.com '
+        'swift-delivery-staging.onrender.com'
+    ),
+)
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
@@ -37,10 +107,12 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.gis',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'swift_delivery_backend',
 ]
@@ -57,19 +129,38 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'https://swift-delivery-frontend-khn550wwd-benjamins-projects-f75264b2.vercel.app/',
-    'https://swift-delivery-frontend.vercel.app/'
-]
+CORS_ALLOWED_ORIGINS = environment_list(
+    'CORS_ALLOWED_ORIGINS',
+    (
+        'http://localhost:5173 '
+        'https://swift-delivery-frontend-khn550wwd-benjamins-projects-f75264b2.vercel.app '
+        'https://swift-delivery-frontend.vercel.app'
+    ),
+)
 
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://swift-delivery-frontend-[a-z0-9-]+-benjamins-projects-f75264b2\.vercel\.app$",
-]
+CSRF_TRUSTED_ORIGINS = environment_list('CSRF_TRUSTED_ORIGINS')
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 MEDIA_URL = '/media/'
+
+STORAGES = {
+    'default': {
+        'BACKEND': (
+            'Swift_Delivery.storage.CloudinaryMediaStorage'
+            if USE_CLOUDINARY
+            else 'django.core.files.storage.FileSystemStorage'
+        ),
+        'OPTIONS': (
+            {'folder': CLOUDINARY_FOLDER}
+            if USE_CLOUDINARY
+            else {}
+        ),
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
 
 ROOT_URLCONF = 'Swift_Delivery.urls'
 
@@ -95,12 +186,27 @@ WSGI_APPLICATION = 'Swift_Delivery.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if not DATABASE_URL:
+    raise ImproperlyConfigured(
+        'DATABASE_URL must point to a PostgreSQL database with PostGIS enabled.'
+    )
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600),
 }
+if DATABASES['default']['ENGINE'] != 'django.db.backends.postgresql':
+    raise ImproperlyConfigured(
+        'Swift Delivery requires PostgreSQL with PostGIS; SQLite is not supported.'
+    )
+DATABASES['default']['ENGINE'] = 'django.contrib.gis.db.backends.postgis'
+
+database_hostname = urlparse(DATABASE_URL).hostname
+is_local_database = database_hostname in ('localhost', '127.0.0.1', '::1')
+
+if not DEBUG and not is_local_database:
+    DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
 
 
 # Password validation
@@ -127,7 +233,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Lagos'
 
 USE_I18N = True
 
@@ -143,3 +249,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
